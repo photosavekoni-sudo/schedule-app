@@ -98,7 +98,6 @@
               <input id="searchInput" type="search" placeholder="Поиск по записи…">
             </label>
             <button id="syncBtn" class="ghost-btn" type="button">Синхронизировать</button>
-            <button id="settingsBtn" class="ghost-btn" type="button">Настройки</button>
           </div>
         </div>
 
@@ -112,37 +111,6 @@
       </section>
     </main>
   </div>
-
-  <dialog id="settingsDialog" class="settings-dialog">
-    <form method="dialog" class="settings-card" id="settingsForm">
-      <div class="panel-head">
-        <div>
-          <p class="eyebrow">Синхронизация</p>
-          <h2>Настройки</h2>
-        </div>
-        <button class="ghost-btn" value="cancel">Закрыть</button>
-      </div>
-
-      <label class="field">
-        <span>URL Google Apps Script</span>
-        <input id="apiUrlInput" type="url" placeholder="https://script.google.com/macros/s/.../exec">
-      </label>
-
-      <label class="field">
-        <span>Имя устройства / сотрудника</span>
-        <input id="deviceNameInput" type="text" placeholder="Например: Администратор">
-      </label>
-
-      <p class="settings-note">
-        URL создаётся после развёртывания <code>apps-script/Code.gs</code> как веб-приложения.
-        Инструкция — в <code>README.md</code>. Без URL записи сохраняются локально на этом устройстве.
-      </p>
-
-      <div class="form-actions">
-        <button id="saveSettingsBtn" class="primary-btn" value="default" type="button">Сохранить настройки</button>
-      </div>
-    </form>
-  </dialog>
 
   <template id="emptyTemplate">
     <div class="empty-state">
