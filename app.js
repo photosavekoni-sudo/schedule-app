@@ -29,16 +29,13 @@
   const netStatus = $('netStatus');
   const syncStatus = $('syncStatus');
   const syncBtn = $('syncBtn');
-  const settingsBtn = $('settingsBtn');
-  const settingsDialog = $('settingsDialog');
-  const apiUrlInput = $('apiUrlInput');
-  const deviceNameInput = $('deviceNameInput');
-  const saveSettingsBtn = $('saveSettingsBtn');
   const toastEl = $('toast');
+
+  const API_URL = 'https://script.google.com/macros/s/AKfycbyx04sF3QiaBgEQ0x-XPgyI5IbFS01EAUVCBvOqxcxxXwoW6cRZorzs9A_WG2puOhUg/exec';
 
   let entries = loadJSON(STORAGE_KEY, []);
   let outbox = loadJSON(OUTBOX_KEY, []);
-  let settings = loadJSON(SETTINGS_KEY, { apiUrl: 'https://script.google.com/macros/s/AKfycbyx04sF3QiaBgEQ0x-XPgyI5IbFS01EAUVCBvOqxcxxXwoW6cRZorzs9A_WG2puOhUg/exec', deviceName: '' });
+  let settings = loadJSON(SETTINGS_KEY, { deviceName: '' });
   let meta = loadJSON(META_KEY, { lastSyncAt: '' });
   let syncing = false;
   let toastTimer;
@@ -48,8 +45,7 @@
   function init() {
     normalizeState();
     bindEvents();
-    applySettingsToUI();
-    setDefaultDateTime();
+        setDefaultDateTime();
     updateNetStatus();
     render();
     updateSyncStatus();
@@ -59,7 +55,7 @@
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && navigator.onLine) syncNow({ silent: true });
     });
-    if (navigator.onLine && settings.apiUrl) syncNow({ silent: true });
+    if (navigator.onLine) syncNow({ silent: true });
   }
 
   function bindEvents() {
@@ -73,19 +69,14 @@
     });
     searchInput.addEventListener('input', render);
     syncBtn.addEventListener('click', () => syncNow());
-    settingsBtn.addEventListener('click', () => {
-      applySettingsToUI();
-      if (typeof settingsDialog.showModal === 'function') settingsDialog.showModal();
-      else settingsDialog.setAttribute('open', '');
-    });
-    saveSettingsBtn.addEventListener('click', saveSettings);
     scheduleList.addEventListener('click', onScheduleClick);
   }
 
   function normalizeState() {
     if (!Array.isArray(entries)) entries = [];
     if (!Array.isArray(outbox)) outbox = [];
-    if (!settings || typeof settings !== 'object') settings = { apiUrl: '', deviceName: '' };
+    if (!settings || typeof settings !== 'object') settings = { deviceName: '' };
+    if (typeof settings.deviceName !== 'string') settings.deviceName = '';
     if (!meta || typeof meta !== 'object') meta = { lastSyncAt: '' };
     entries = entries.filter(isValidEntry).map(normalizeEntry);
     outbox = outbox.filter((op) => op && typeof op.id === 'string' && op.entry);
@@ -151,7 +142,7 @@
       const next = normalizeEntry({ id: makeId(), date, time, info, type, color, updatedAt: now, deleted: false, sourceDevice: device, syncStatus: 'pending', lastError: '' });
       entries.push(next);
       enqueue({ op: 'upsert', id: next.id, entry: exportEntry(next), updatedAt: now });
-      showToast(navigator.onLine && settings.apiUrl ? 'Запись сохранена и отправляется.' : 'Запись сохранена на устройстве.');
+      showToast(navigator.onLine ? 'Запись сохранена и отправляется.' : 'Запись сохранена на устройстве.')
     }
 
     persist();
@@ -283,14 +274,9 @@
   async function syncNow(opts = {}) {
     const silent = Boolean(opts.silent);
     if (syncing) return;
-    if (!settings.apiUrl) {
-      updateSyncStatus();
-      if (!silent) showToast('Укажите URL Apps Script в настройках.');
-      return;
-    }
     if (!navigator.onLine) {
       updateSyncStatus();
-      if (!silent) showToast('Нет подключения. Записи отправятся позже.');
+      if (!silent) showToast('Нет интернета. Данные отправятся позже.');
       return;
     }
 
@@ -319,7 +305,7 @@
     if (!outbox.length) return;
     const pendingOps = collapseOutbox(outbox);
     const payload = { action: 'push', device: settings.deviceName || getDeviceLabel(), ops: pendingOps };
-    const res = await postJson(settings.apiUrl, payload);
+    const res = await postJson(API_URL, payload);
     if (!res || res.ok !== true) throw new Error(res && res.error ? res.error : 'Push failed');
 
     const ackedIds = new Set(pendingOps.map((o) => o.id + ':' + o.updatedAt));
@@ -336,7 +322,7 @@
   }
 
   async function pullFromServer() {
-    const res = await postJson(settings.apiUrl, { action: 'pull' });
+    const res = await postJson(API_URL, { action: 'pull' });
     if (!res || res.ok !== true || !Array.isArray(res.entries)) throw new Error(res && res.error ? res.error : 'Pull failed');
     const remote = res.entries.filter(isValidEntry).map(normalizeEntry);
     const byId = new Map(entries.map((e) => [e.id, e]));
@@ -439,26 +425,6 @@
     };
   }
 
-  function saveSettings() {
-    const url = apiUrlInput.value.trim();
-    if (url && !/^https:\/\/script\.google\.com\//.test(url)) {
-      showToast('URL должен начинаться с https://script.google.com/');
-      return;
-    }
-    settings.apiUrl = url;
-    settings.deviceName = deviceNameInput.value.trim();
-    persist();
-    settingsDialog.close();
-    updateSyncStatus();
-    showToast('Настройки сохранены.');
-    if (settings.apiUrl) syncNow({ silent: true });
-  }
-
-  function applySettingsToUI() {
-    apiUrlInput.value = settings.apiUrl || '';
-    deviceNameInput.value = settings.deviceName || '';
-  }
-
   function updateNetStatus() {
     const online = navigator.onLine;
     netStatus.textContent = online ? 'Онлайн' : 'Офлайн';
@@ -466,11 +432,6 @@
   }
 
   function updateSyncStatus(state) {
-    if (!settings.apiUrl) {
-      syncStatus.textContent = 'Синхронизация не настроена';
-      syncStatus.className = 'status-pill status-idle';
-      return;
-    }
     if (syncing || state === 'syncing') {
       syncStatus.textContent = 'Синхронизация…';
       syncStatus.className = 'status-pill status-sync';
