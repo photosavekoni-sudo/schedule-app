@@ -1,0 +1,19 @@
+{
+  "name": "Расписание",
+  "short_name": "Расписание",
+  "description": "Офлайн-расписание с синхронизацией в Google Таблицу",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#1f6feb",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
