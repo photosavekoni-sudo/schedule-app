@@ -110,8 +110,14 @@ h2 { font-size: 1.25rem; }
   box-shadow: var(--shadow);
   min-width: 0;
 }
-.form-panel { padding: 24px; }
-.schedule-panel { padding: 24px; }
+.form-panel { padding: 24px; align-self: start; }
+.schedule-panel {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: calc(100vh - 170px);
+}
 
 .panel-head {
   display: flex;
@@ -240,7 +246,15 @@ input[type="color"] {
 .dot-event { background: var(--event); }
 .dot-task { background: var(--task); }
 
-.schedule-list { display: flex; flex-direction: column; }
+.schedule-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
 .day-group { padding: 18px 0; border-bottom: 1px solid #e6edf5; }
 .day-group:last-child { border-bottom: 0; padding-bottom: 0; }
 .day-header {
@@ -381,6 +395,7 @@ input[type="color"] {
 
 @media (max-width: 980px) {
   .layout { grid-template-columns: 1fr; }
+  .schedule-panel { max-height: min(70vh, 720px); }
   .search-field { min-width: 160px; }
 }
 

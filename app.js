@@ -55,6 +55,8 @@
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && navigator.onLine) syncNow({ silent: true });
     });
+    window.addEventListener('pageshow', () => { if (navigator.onLine) syncNow({ silent: true }); });
+    window.addEventListener('focus', () => { if (navigator.onLine) syncNow({ silent: true }); });
     if (navigator.onLine) syncNow({ silent: true });
   }
 
