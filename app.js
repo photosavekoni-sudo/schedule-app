@@ -38,7 +38,7 @@
 
   let entries = loadJSON(STORAGE_KEY, []);
   let outbox = loadJSON(OUTBOX_KEY, []);
-  let settings = loadJSON(SETTINGS_KEY, { apiUrl: '', deviceName: '' });
+  let settings = loadJSON(SETTINGS_KEY, { apiUrl: 'https://script.google.com/macros/s/AKfycbyx04sF3QiaBgEQ0x-XPgyI5IbFS01EAUVCBvOqxcxxXwoW6cRZorzs9A_WG2puOhUg/exec', deviceName: '' });
   let meta = loadJSON(META_KEY, { lastSyncAt: '' });
   let syncing = false;
   let toastTimer;
