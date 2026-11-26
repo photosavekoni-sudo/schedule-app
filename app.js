@@ -232,14 +232,14 @@
     actionDateWrap.classList.add("hidden");
     actionTimeWrap.classList.add("hidden");
     actionRepeatWrap.classList.add("hidden");
-    actionDialogSubmit.textContent = "Подтвердить";
+    actionDialogSubmit.textContent = "Ок";
     const scopeSingle = actionDialogForm.querySelector('input[name="actionScope"][value="single"]');
     if (scopeSingle) scopeSingle.checked = true;
 
     if (action === "cancel") {
       actionDialogTitle.textContent = "Отмена";
       actionDialogDesc.textContent = "Пометить запись как отменённую.";
-      actionDialogSubmit.textContent = "Отменить запись";
+      actionDialogSubmit.textContent = "Отменить";
     } else if (action === "move") {
       actionDialogTitle.textContent = "Перенос";
       actionDialogDesc.textContent = "Новая дата и время.";
@@ -249,11 +249,18 @@
       actionTimeInput.value = entry.time;
       actionDialogSubmit.textContent = "Перенести";
     } else if (action === "repeat") {
-      actionDialogTitle.textContent = "Повторение"; actionDialogDesc.textContent = "Период и количество."; actionRepeatWrap.classList.remove("hidden"); actionRepeatUnitInput.value = entry.recurrence || "weekly"; actionRepeatInput.value = entry.repeatTotal === "" || entry.repeatTotal == null ? "" : String(entry.repeatTotal); actionDialogSubmit.textContent = "Сохранить"; actionDialog.classList.remove("hidden");
+      actionDialogTitle.textContent = "Повторение";
+      actionDialogDesc.textContent = "Период и количество.";
+      actionRepeatWrap.classList.remove("hidden");
+      actionRepeatUnitInput.value = entry.recurrence || "weekly";
+      actionRepeatInput.value = entry.repeatTotal === "" || entry.repeatTotal == null ? "" : String(entry.repeatTotal);
+      actionDialogSubmit.textContent = "Сохранить";
+    }
+
+    actionDialog.classList.remove("hidden");
     const focusEl = action === "move" ? actionDateInput : action === "repeat" ? actionRepeatInput : actionDialogSubmit;
     setTimeout(() => focusEl && focusEl.focus(), 0);
   }
-
   function closeActionDialog() {
     actionDialogState = null;
     actionDialog.classList.add("hidden");
