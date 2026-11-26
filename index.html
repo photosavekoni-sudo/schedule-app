@@ -119,19 +119,39 @@
     </div>
   </template>
 
-  <div id="actionDialog" class="dialog hidden" role="dialog" aria-modal="true" aria-labelledby="actionDialogTitle">
+    <div id="actionDialog" class="dialog hidden" role="dialog" aria-modal="true" aria-labelledby="actionDialogTitle">
     <div class="dialog-card">
       <div class="dialog-head">
-        <div><p class="eyebrow" id="actionDialogEyebrow">Действие</p><h3 id="actionDialogTitle">Действие с записью</h3></div>
+        <div><p class="eyebrow" id="actionDialogEyebrow">Действие</p><h3 id="actionDialogTitle">Действие</h3></div>
         <button id="actionDialogClose" class="icon-btn" type="button" aria-label="Закрыть">✕</button>
       </div>
       <p id="actionDialogDesc" class="dialog-desc"></p>
       <form id="actionDialogForm" class="dialog-form">
-        <div id="actionScopeWrap" class="field hidden"><span>Применить</span><div class="scope-options"><label class="scope-option"><input type="radio" name="actionScope" value="single" checked><span>Только эту запись</span></label><label class="scope-option"><input type="radio" name="actionScope" value="future"><span>Эту и все последующие</span></label></div></div>
-        <label id="actionDateWrap" class="field hidden"><span>Новая дата</span><input id="actionDateInput" type="date"></label>
-        <label id="actionTimeWrap" class="field hidden"><span>Новое время</span><input id="actionTimeInput" type="time"></label>
-        <label id="actionRepeatWrap" class="field hidden"><span>Количество повторений</span><input id="actionRepeatInput" type="number" min="0" step="1" placeholder="Пусто — автоматически на 1 период вперёд"><small class="field-help">Пусто = еженедельно создавать следующий период.</small></label>
-        <div class="dialog-actions"><button id="actionDialogCancel" class="ghost-btn" type="button">Отмена</button><button id="actionDialogSubmit" class="primary-btn" type="submit">Подтвердить</button></div>
+        <div id="actionScopeWrap" class="field hidden">
+          <span>Область</span>
+          <div class="scope-options">
+            <label class="scope-option"><input type="radio" name="actionScope" value="single" checked><span>Только эта</span></label>
+            <label class="scope-option"><input type="radio" name="actionScope" value="future"><span>Эта и следующие</span></label>
+          </div>
+        </div>
+        <div id="actionDateWrap" class="dialog-grid hidden">
+          <label class="field"><span>Дата</span><input id="actionDateInput" type="date"></label>
+          <label class="field"><span>Время</span><input id="actionTimeInput" type="time"></label>
+        </div>
+        <div id="actionRepeatWrap" class="dialog-grid hidden">
+          <label class="field"><span>Период</span>
+            <select id="actionRepeatUnitInput">
+              <option value="daily">День</option>
+              <option value="weekly" selected>Неделя</option>
+              <option value="monthly">Месяц</option>
+            </select>
+          </label>
+          <label class="field"><span>Повторений</span><input id="actionRepeatInput" type="number" min="0" step="1" placeholder="Пусто = бесконечно"><small class="field-help">Пусто = бесконечно, +1 период в день записи.</small></label>
+        </div>
+        <div class="dialog-actions">
+          <button id="actionDialogCancel" class="ghost-btn" type="button">Отмена</button>
+          <button id="actionDialogSubmit" class="primary-btn" type="submit">Ок</button>
+        </div>
       </form>
     </div>
   </div>

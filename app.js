@@ -40,7 +40,7 @@
   let syncing = false;
   let toastTimer;
   let actionDialogState = null;
-  const uiPending = new Map();
+  
   const actionDialog = document.getElementById('actionDialog');
   const actionDialogForm = document.getElementById('actionDialogForm');
   const actionDialogTitle = document.getElementById('actionDialogTitle');
@@ -55,6 +55,7 @@
   const actionDateInput = document.getElementById('actionDateInput');
   const actionTimeInput = document.getElementById('actionTimeInput');
   const actionRepeatInput = document.getElementById('actionRepeatInput');
+  const actionRepeatUnitInput = document.getElementById('actionRepeatUnitInput');
 
   init();
 
@@ -130,10 +131,10 @@
       lastError: String(e.lastError || ''),
       status,
       seriesId: String(e.seriesId || ''),
-      recurrence: e.recurrence === 'weekly' ? 'weekly' : '',
-      repeatTotal: Number.isFinite(rt) && rt >= 0 ? rt : '',
-      repeatRemaining: Number.isFinite(rr) && rr >= 0 ? rr : '',
-      movedToId: String(e.movedToId || ''),
+      recurrence: ["daily","weekly","monthly"].includes(e.recurrence) ? e.recurrence : "",
+      repeatTotal: Number.isFinite(rt) && rt >= 0 ? rt : "",
+      repeatRemaining: Number.isFinite(rr) && rr >= 0 ? rr : "",
+      movedToId: String(e.movedToId || ""),
     };
   }
 
@@ -221,7 +222,7 @@
   }
 
   function isSeriesEntry(entry) {
-    return entry.recurrence === "weekly" || Boolean(entry.seriesId);
+    return Boolean(entry.recurrence || entry.seriesId);
   }
 
   function openActionDialog(action, entry) {
@@ -236,34 +237,24 @@
     if (scopeSingle) scopeSingle.checked = true;
 
     if (action === "cancel") {
-      actionDialogTitle.textContent = "Отмена записи";
-      actionDialogDesc.textContent = `Запись будет перечеркнута и помечена как «Отмена»: ${entry.date} ${entry.time} — ${entry.info}`;
+      actionDialogTitle.textContent = "Отмена";
+      actionDialogDesc.textContent = "Пометить запись как отменённую.";
       actionDialogSubmit.textContent = "Отменить запись";
     } else if (action === "move") {
-      actionDialogTitle.textContent = "Перенос записи";
-      actionDialogDesc.textContent = "Укажите новую дату и время. Во время операции запись временно помечается как перенос, затем возвращается в исходное состояние; на новое время создаётся новая запись.";
+      actionDialogTitle.textContent = "Перенос";
+      actionDialogDesc.textContent = "Новая дата и время.";
       actionDateWrap.classList.remove("hidden");
       actionTimeWrap.classList.remove("hidden");
       actionDateInput.value = entry.date;
       actionTimeInput.value = entry.time;
       actionDialogSubmit.textContent = "Перенести";
     } else if (action === "repeat") {
-      actionDialogTitle.textContent = "Повторение записи";
-      actionDialogDesc.textContent = "Настройте еженедельное повторение. Пусто = автоматически создавать следующий период.";
-      actionRepeatWrap.classList.remove("hidden");
-      actionRepeatInput.value = entry.repeatTotal === "" || entry.repeatTotal == null ? "" : String(entry.repeatTotal);
-      actionDialogSubmit.textContent = "Сохранить";
-    }
-    actionDialog.classList.remove("hidden");
+      actionDialogTitle.textContent = "Повторение"; actionDialogDesc.textContent = "Период и количество."; actionRepeatWrap.classList.remove("hidden"); actionRepeatUnitInput.value = entry.recurrence || "weekly"; actionRepeatInput.value = entry.repeatTotal === "" || entry.repeatTotal == null ? "" : String(entry.repeatTotal); actionDialogSubmit.textContent = "Сохранить"; actionDialog.classList.remove("hidden");
     const focusEl = action === "move" ? actionDateInput : action === "repeat" ? actionRepeatInput : actionDialogSubmit;
     setTimeout(() => focusEl && focusEl.focus(), 0);
   }
 
   function closeActionDialog() {
-    if (actionDialogState && actionDialogState.tempMoveId) {
-      uiPending.delete(actionDialogState.id);
-      render();
-    }
     actionDialogState = null;
     actionDialog.classList.add("hidden");
     actionDialogForm.reset();
@@ -294,18 +285,10 @@
       const nextDate = actionDateInput.value;
       const nextTime = actionTimeInput.value;
       if (!/^\d{4}-\d{2}-\d{2}$/.test(nextDate) || !/^\d{2}:\d{2}$/.test(nextTime)) { showToast("Укажите дату и время."); return; }
-      actionDialogState.tempMoveId = id;
-      uiPending.set(id, { status: "moved" });
-      render();
       actionDialog.classList.add("hidden");
-      try {
-        moveEntry(entry, nextDate, nextTime, { now, scope });
-        showToast(scope === "future" ? "Запись и последующие перенесены." : "Запись перенесена.");
-      } finally {
-        uiPending.delete(id);
-        actionDialogState = null;
-        render();
-      }
+      actionDialogState = null;
+      moveEntry(entry, nextDate, nextTime, { now, scope });
+      showToast(scope === "future" ? "Запись и последующие перенесены." : "Запись перенесена.");
       return;
     }
 
@@ -313,7 +296,7 @@
       const raw = actionRepeatInput.value.trim();
       const count = raw === "" ? "" : parseInt(raw, 10);
       if (count !== "" && (!Number.isFinite(count) || count < 0)) { showToast("Введите число 0 или больше."); return; }
-      setupRecurrence(entry, { count, now });
+      setupRecurrence(entry, { count, now, recurrence: actionRepeatUnitInput.value || "weekly" });
       showToast("Повторение настроено.");
       actionDialogState = null; actionDialog.classList.add("hidden");
       return;
@@ -321,7 +304,7 @@
   }
 
   function getSeriesScope(entry, actionLabel) {
-    if (entry.recurrence !== 'weekly' && !entry.seriesId) return 'single';
+    if (!entry.recurrence && !entry.seriesId) return "single";
     const msg = actionLabel + ': разово или все последующие периоды?\nOK = все последующие, Отмена = только эту запись';
     return confirm(msg) ? 'future' : 'single';
   }
@@ -363,56 +346,109 @@
       for (const t of targets) {
         const nd = addDaysISO(t.date, delta);
         const moved = cloneAsNew(t, nd, nextTime, now);
+        moved.status = "active"; moved.movedToId = "";
+        touch(t, now, { status: "moved", movedToId: moved.id });
         entries.push(moved);
         enqueue({ op: "upsert", id: moved.id, entry: exportEntry(moved), updatedAt: now });
       }
-      // originals remain in their initial state
     } else {
       const moved = cloneAsNew(entry, nextDate, nextTime, now);
+      moved.status = "active"; moved.movedToId = "";
+      touch(entry, now, { status: "moved", movedToId: moved.id });
       entries.push(moved);
       enqueue({ op: "upsert", id: moved.id, entry: exportEntry(moved), updatedAt: now });
-      // original remains in its initial state
     }
     persist(); render(); syncNow({ silent: true });
   }
+  function recurrenceStep(recurrence) {
+    if (recurrence === "daily") return { days: 1, months: 0 };
+    if (recurrence === "monthly") return { days: 0, months: 1 };
+    return { days: 7, months: 0 };
+  }
+  function addRecurrenceISO(iso, recurrence, n) {
+    let cur = iso;
+    for (let i = 0; i < n; i++) {
+      const step = recurrenceStep(recurrence);
+      if (step.months) cur = addMonthsISO(cur, step.months);
+      else cur = addDaysISO(cur, step.days);
+    }
+    return cur;
+  }
+  function addMonthsISO(iso, months) {
+    const d = new Date(iso + "T00:00:00");
+    const day = d.getDate();
+    d.setMonth(d.getMonth() + months);
+    if (d.getDate() < day) d.setDate(0);
+    return localDateValue(d);
+  }
+  function recurrenceLabel(rec) {
+    return rec === "daily" ? "Ежедневно" : rec === "monthly" ? "Ежемесячно" : "Еженедельно";
+  }
+
   function setupRecurrence(entry, opts) {
     const now = opts.now;
-    const count = opts.count; // '' = auto
+    const count = opts.count; // "" = infinite
+    const recurrence = ["daily","weekly","monthly"].includes(opts.recurrence) ? opts.recurrence : "weekly";
     const seriesId = entry.seriesId || entry.id;
-    const base = { ...entry, seriesId, recurrence: 'weekly', status: 'active' };
-    touch(entry, now, { seriesId, recurrence: 'weekly', repeatTotal: count, repeatRemaining: count === '' ? '' : Math.max(0, count - 1), status: 'active' });
-    if (count === '') {
+    touch(entry, now, { seriesId, recurrence, repeatTotal: count, repeatRemaining: count === "" ? "" : Math.max(0, count - 1), status: "active" });
+    // remove future auto/series entries beyond what we need for clean reset
+    const existing = entries.filter((e) => e.seriesId === seriesId && !e.deleted).sort(compareEntries);
+    if (count === "") {
+      for (const e of existing) {
+        if (e.id === entry.id) continue;
+        if ((e.date + "T" + e.time) > (entry.date + "T" + entry.time)) {
+          e.deleted = true; e.updatedAt = now; e.syncStatus = "pending"; e.lastError = "";
+          enqueue({ op: "delete", id: e.id, entry: exportEntry(e), updatedAt: now });
+        }
+      }
       ensureNextAutoOccurrence(entry, now);
     } else {
       const total = Number(count);
-      const existing = entries.filter((e) => !e.deleted && e.seriesId === seriesId).sort(compareEntries);
-      // keep current + create missing future occurrences
       for (let i = 1; i < total; i++) {
-        const d = addDaysISO(entry.date, i * 7);
-        const has = existing.some((e) => e.date === d && e.time === entry.time);
+        const d = addRecurrenceISO(entry.date, recurrence, i);
+        const has = existing.some((e) => !e.deleted && e.date === d && e.time === entry.time);
         if (!has) {
-          const n = normalizeEntry({ ...base, id: makeId(), date: d, time: entry.time, updatedAt: now, deleted:false, syncStatus:'pending', lastError:'', repeatTotal: total, repeatRemaining: Math.max(0, total - i - 1), movedToId:'' });
+          const n = normalizeEntry({ ...entry, id: makeId(), date: d, time: entry.time, updatedAt: now, deleted:false, syncStatus:"pending", lastError:"", seriesId, recurrence, repeatTotal: total, repeatRemaining: Math.max(0, total - i - 1), status:"active", movedToId:"" });
           entries.push(n);
-          enqueue({ op: 'upsert', id: n.id, entry: exportEntry(n), updatedAt: now });
+          enqueue({ op: "upsert", id: n.id, entry: exportEntry(n), updatedAt: now });
+        }
+      }
+      // trim extra future occurrences
+      for (const e of existing) {
+        if (e.id === entry.id || e.deleted) continue;
+        const idx = occurrenceIndex(entry, e);
+        if (idx >= total) {
+          e.deleted = true; e.updatedAt = now; e.syncStatus = "pending"; e.lastError = "";
+          enqueue({ op: "delete", id: e.id, entry: exportEntry(e), updatedAt: now });
+        } else if (idx > 0) {
+          touch(e, now, { recurrence, repeatTotal: total, repeatRemaining: Math.max(0, total - idx - 1), seriesId });
         }
       }
     }
     persist(); render(); syncNow({ silent: true });
   }
 
-  function ensureNextAutoOccurrence(entry, now) {
-    if (entry.recurrence !== 'weekly' || entry.repeatTotal !== '') return;
-    const seriesId = entry.seriesId || entry.id;
-    const series = entries.filter((e) => !e.deleted && e.seriesId === seriesId).sort(compareEntries);
-    const last = series[series.length - 1] || entry;
-    const nextDate = addDaysISO(last.date, 7);
-    const has = series.some((e) => e.date === nextDate && e.time === entry.time);
-    if (has) return;
-    const n = normalizeEntry({ ...entry, id: makeId(), date: nextDate, updatedAt: now, deleted:false, syncStatus:'pending', lastError:'', status:'active', movedToId:'', repeatTotal:'', repeatRemaining:'' });
-    entries.push(n);
-    enqueue({ op: 'upsert', id: n.id, entry: exportEntry(n), updatedAt: now });
+  function occurrenceIndex(base, e) {
+    // approximate by stepping forward; small counts expected
+    for (let i=0;i<400;i++) { if (addRecurrenceISO(base.date, base.recurrence || e.recurrence || "weekly", i) === e.date) return i; }
+    return -1;
   }
 
+  function ensureNextAutoOccurrence(entry, now) {
+    if (!entry.recurrence || entry.repeatTotal !== "") return;
+    const seriesId = entry.seriesId || entry.id;
+    const series = entries.filter((e) => !e.deleted && e.seriesId === seriesId && e.status !== "cancelled").sort(compareEntries);
+    const last = series[series.length - 1] || entry;
+    const nextDate = addRecurrenceISO(last.date, entry.recurrence, 1);
+    // Extend only when day of current/last occurrence has arrived (avoid infinite clutter)
+    const today = localDateValue(new Date());
+    if (last.date > today) return;
+    const has = series.some((e) => e.date === nextDate && e.time === entry.time);
+    if (has) return;
+    const n = normalizeEntry({ ...entry, id: makeId(), date: nextDate, updatedAt: now, deleted:false, syncStatus:"pending", lastError:"", status:"active", movedToId:"", repeatTotal:"", repeatRemaining:"" });
+    entries.push(n);
+    enqueue({ op: "upsert", id: n.id, entry: exportEntry(n), updatedAt: now });
+  }
   function cloneAsNew(entry, date, time, now) {
     return normalizeEntry({ ...entry, id: makeId(), date, time, updatedAt: now, deleted:false, syncStatus:'pending', lastError:'', status:'active', movedToId:'', repeatRemaining: entry.repeatTotal === '' ? '' : entry.repeatRemaining });
   }
@@ -478,16 +514,15 @@
     const color = normalizeColor(entry.color) || defaultColorFor(entry.type);
     const pending = entry.syncStatus === "pending";
     const error = entry.syncStatus === "error";
-    const pendingUI = uiPending.get(entry.id);
-    const status = (pendingUI && pendingUI.status) || entry.status || "active";
+    const status = entry.status || "active";
     li.className = "entry-row" + (status !== "active" ? " entry-row-inactive" : "");
     const statusBadge = status === "cancelled"
       ? '<span class="badge badge-cancelled">Отмена</span>'
       : status === "moved"
         ? '<span class="badge badge-moved">Перенос</span>'
         : "";
-    const recurBadge = entry.recurrence === "weekly"
-      ? `<span class="badge badge-recur">Еженедельно${entry.repeatRemaining !== "" && entry.repeatRemaining != null ? ` · осталось ${entry.repeatRemaining}` : ""}</span>`
+    const recurBadge = entry.recurrence
+      ? `<span class="badge badge-recur">${escapeHTML(recurrenceLabel(entry.recurrence))}${entry.repeatTotal === "" ? " · ∞" : (entry.repeatRemaining !== "" && entry.repeatRemaining != null ? ` · ${entry.repeatRemaining}` : "")}</span>`
       : "";
     li.innerHTML = `
       <div class="entry-time">${escapeHTML(entry.time)}</div>
@@ -605,8 +640,8 @@
 
   function ensureAutoRecurrences() {
     const now = new Date().toISOString();
-    const activeWeekly = entries.filter((e) => !e.deleted && e.recurrence === 'weekly' && e.repeatTotal === '' && e.status !== 'cancelled');
-    for (const e of activeWeekly) ensureNextAutoOccurrence(e, now);
+    const activeRecurring = entries.filter((e) => !e.deleted && e.recurrence && e.repeatTotal === "" && e.status !== "cancelled");
+    for (const e of activeRecurring) ensureNextAutoOccurrence(e, now);
   }
 
   function collapseOutbox(ops) {
