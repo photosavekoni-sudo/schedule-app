@@ -252,7 +252,7 @@
       <div class="entry-time">${escapeHTML(entry.time)}</div>
       <div class="entry-main">
         <div class="entry-info">
-          <span class="entry-color" style="background:${escapeAttr(color)}"></span>
+          <span class="entry-color" style="background:${escapeAttr(color)};box-shadow:0 0 0 2px #fff,0 0 0 4px ${escapeAttr(color)}33"></span>
           <span>${escapeHTML(entry.info)}</span>
         </div>
         <div class="entry-meta">
