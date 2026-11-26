@@ -39,6 +39,22 @@
   let meta = loadJSON(META_KEY, { lastSyncAt: '' });
   let syncing = false;
   let toastTimer;
+  let actionDialogState = null;
+  const uiPending = new Map();
+  const actionDialog = document.getElementById('actionDialog');
+  const actionDialogForm = document.getElementById('actionDialogForm');
+  const actionDialogTitle = document.getElementById('actionDialogTitle');
+  const actionDialogDesc = document.getElementById('actionDialogDesc');
+  const actionDialogClose = document.getElementById('actionDialogClose');
+  const actionDialogCancel = document.getElementById('actionDialogCancel');
+  const actionDialogSubmit = document.getElementById('actionDialogSubmit');
+  const actionScopeWrap = document.getElementById('actionScopeWrap');
+  const actionDateWrap = document.getElementById('actionDateWrap');
+  const actionTimeWrap = document.getElementById('actionTimeWrap');
+  const actionRepeatWrap = document.getElementById('actionRepeatWrap');
+  const actionDateInput = document.getElementById('actionDateInput');
+  const actionTimeInput = document.getElementById('actionTimeInput');
+  const actionRepeatInput = document.getElementById('actionRepeatInput');
 
   init();
 
@@ -71,6 +87,11 @@
     });
     searchInput.addEventListener('input', render);
     syncBtn.addEventListener('click', () => syncNow());
+    actionDialogClose.addEventListener('click', closeActionDialog);
+    actionDialogCancel.addEventListener('click', closeActionDialog);
+    actionDialog.addEventListener('click', (e) => { if (e.target === actionDialog) closeActionDialog(); });
+    actionDialogForm.addEventListener('submit', onActionDialogSubmit);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && actionDialogState) closeActionDialog(); });
     scheduleList.addEventListener('click', onScheduleClick);
   }
 
@@ -163,67 +184,138 @@
   }
 
   function onScheduleClick(ev) {
-    const btn = ev.target.closest('button[data-action]');
+    const btn = ev.target.closest("button[data-action]");
     if (!btn) return;
-    const id = btn.getAttribute('data-id');
-    const action = btn.getAttribute('data-action');
+    const id = btn.getAttribute("data-id");
+    const action = btn.getAttribute("data-action");
     const entry = entries.find((e) => e.id === id && !e.deleted);
     if (!entry) return;
-    const now = new Date().toISOString();
 
-    if (action === 'edit') {
+    if (action === "edit") {
       entryId.value = entry.id;
       dateInput.value = entry.date;
       timeInput.value = entry.time;
       infoInput.value = entry.info;
       setSelectedType(entry.type);
       colorInput.value = normalizeColor(entry.color) || defaultColorFor(entry.type);
-      cancelEditBtn.classList.remove('hidden');
-      saveBtn.textContent = 'Сохранить изменения';
-      $('formTitle').textContent = 'Редактировать запись';
-      form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      cancelEditBtn.classList.remove("hidden");
+      saveBtn.textContent = "Сохранить изменения";
+      $("formTitle").textContent = "Редактировать запись";
+      form.scrollIntoView({ behavior: "smooth", block: "start" });
       infoInput.focus();
       return;
     }
 
-    if (action === 'delete') {
-      const label = entry.info.length > 40 ? entry.info.slice(0, 40) + '…' : entry.info;
+    if (action === "delete") {
+      const label = entry.info.length > 40 ? entry.info.slice(0, 40) + "…" : entry.info;
       if (!confirm(`Удалить запись "${label}"?`)) return;
-      applyStatusChange(entry, 'deleted', { now, scope: getSeriesScope(entry, 'Удалить') });
-      showToast('Запись удалена.');
+      applyStatusChange(entry, "deleted", { now: new Date().toISOString(), scope: "single" });
+      showToast("Запись удалена.");
       if (entryId.value === id) resetForm();
       return;
     }
 
-    if (action === 'cancel') {
-      if (entry.status === 'cancelled') { showToast('Запись уже отменена.'); return; }
-      const scope = getSeriesScope(entry, 'Отменить');
-      if (scope === null) return;
-      applyStatusChange(entry, 'cancelled', { now, scope });
-      showToast(scope === 'future' ? 'Запись и последующие отменены.' : 'Запись отменена.');
+    if (action === "cancel" || action === "move" || action === "repeat") {
+      openActionDialog(action, entry);
+    }
+  }
+
+  function isSeriesEntry(entry) {
+    return entry.recurrence === "weekly" || Boolean(entry.seriesId);
+  }
+
+  function openActionDialog(action, entry) {
+    actionDialogState = { action, id: entry.id };
+    actionDialogForm.reset();
+    actionScopeWrap.classList.toggle("hidden", !isSeriesEntry(entry));
+    actionDateWrap.classList.add("hidden");
+    actionTimeWrap.classList.add("hidden");
+    actionRepeatWrap.classList.add("hidden");
+    actionDialogSubmit.textContent = "Подтвердить";
+    const scopeSingle = actionDialogForm.querySelector('input[name="actionScope"][value="single"]');
+    if (scopeSingle) scopeSingle.checked = true;
+
+    if (action === "cancel") {
+      actionDialogTitle.textContent = "Отмена записи";
+      actionDialogDesc.textContent = `Запись будет перечеркнута и помечена как «Отмена»: ${entry.date} ${entry.time} — ${entry.info}`;
+      actionDialogSubmit.textContent = "Отменить запись";
+    } else if (action === "move") {
+      actionDialogTitle.textContent = "Перенос записи";
+      actionDialogDesc.textContent = "Укажите новую дату и время. Во время операции запись временно помечается как перенос, затем возвращается в исходное состояние; на новое время создаётся новая запись.";
+      actionDateWrap.classList.remove("hidden");
+      actionTimeWrap.classList.remove("hidden");
+      actionDateInput.value = entry.date;
+      actionTimeInput.value = entry.time;
+      actionDialogSubmit.textContent = "Перенести";
+    } else if (action === "repeat") {
+      actionDialogTitle.textContent = "Повторение записи";
+      actionDialogDesc.textContent = "Настройте еженедельное повторение. Пусто = автоматически создавать следующий период.";
+      actionRepeatWrap.classList.remove("hidden");
+      actionRepeatInput.value = entry.repeatTotal === "" || entry.repeatTotal == null ? "" : String(entry.repeatTotal);
+      actionDialogSubmit.textContent = "Сохранить";
+    }
+    actionDialog.classList.remove("hidden");
+    const focusEl = action === "move" ? actionDateInput : action === "repeat" ? actionRepeatInput : actionDialogSubmit;
+    setTimeout(() => focusEl && focusEl.focus(), 0);
+  }
+
+  function closeActionDialog() {
+    if (actionDialogState && actionDialogState.tempMoveId) {
+      uiPending.delete(actionDialogState.id);
+      render();
+    }
+    actionDialogState = null;
+    actionDialog.classList.add("hidden");
+    actionDialogForm.reset();
+  }
+
+  function getDialogScope() {
+    const checked = actionDialogForm.querySelector('input[name="actionScope"]:checked');
+    return checked ? checked.value : "single";
+  }
+
+  async function onActionDialogSubmit(ev) {
+    ev.preventDefault();
+    if (!actionDialogState) return;
+    const { action, id } = actionDialogState;
+    const entry = entries.find((e) => e.id === id && !e.deleted);
+    if (!entry) { closeActionDialog(); return; }
+    const scope = isSeriesEntry(entry) ? getDialogScope() : "single";
+    const now = new Date().toISOString();
+
+    if (action === "cancel") {
+      applyStatusChange(entry, "cancelled", { now, scope });
+      showToast(scope === "future" ? "Запись и последующие отменены." : "Запись отменена.");
+      actionDialogState = null; actionDialog.classList.add("hidden");
       return;
     }
 
-    if (action === 'move') {
-      const scope = getSeriesScope(entry, 'Перенести');
-      if (scope === null) return;
-      const nextDate = prompt('Новая дата (ГГГГ-ММ-ДД):', entry.date);
-      if (!nextDate) return;
-      const nextTime = prompt('Новое время (ЧЧ:ММ):', entry.time);
-      if (!nextTime) return;
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(nextDate) || !/^\d{2}:\d{2}$/.test(nextTime)) { showToast('Неверный формат даты/времени.'); return; }
-      moveEntry(entry, nextDate, nextTime, { now, scope });
-      showToast(scope === 'future' ? 'Запись и последующие перенесены.' : 'Запись перенесена.');
+    if (action === "move") {
+      const nextDate = actionDateInput.value;
+      const nextTime = actionTimeInput.value;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(nextDate) || !/^\d{2}:\d{2}$/.test(nextTime)) { showToast("Укажите дату и время."); return; }
+      actionDialogState.tempMoveId = id;
+      uiPending.set(id, { status: "moved" });
+      render();
+      actionDialog.classList.add("hidden");
+      try {
+        moveEntry(entry, nextDate, nextTime, { now, scope });
+        showToast(scope === "future" ? "Запись и последующие перенесены." : "Запись перенесена.");
+      } finally {
+        uiPending.delete(id);
+        actionDialogState = null;
+        render();
+      }
       return;
     }
 
-    if (action === 'repeat') {
-      const countRaw = prompt('Количество повторений (пусто = автоматически на 1 период вперёд):', entry.repeatTotal === '' ? '' : String(entry.repeatTotal));
-      if (countRaw === null) return;
-      const count = countRaw.trim() === '' ? '' : parseInt(countRaw.trim(), 10);
-      if (count !== '' && (!Number.isFinite(count) || count < 0)) { showToast('Введите число 0 или больше.'); return; }
+    if (action === "repeat") {
+      const raw = actionRepeatInput.value.trim();
+      const count = raw === "" ? "" : parseInt(raw, 10);
+      if (count !== "" && (!Number.isFinite(count) || count < 0)) { showToast("Введите число 0 или больше."); return; }
       setupRecurrence(entry, { count, now });
-      showToast(entry.recurrence === 'weekly' ? 'Повторение настроено.' : 'Повторение обновлено.');
+      showToast("Повторение настроено.");
+      actionDialogState = null; actionDialog.classList.add("hidden");
       return;
     }
   }
@@ -265,29 +357,24 @@
   function moveEntry(entry, nextDate, nextTime, opts) {
     const now = opts.now;
     const scope = opts.scope;
-    if (scope === 'future') {
+    if (scope === "future") {
       const targets = futureSeriesEntries(entry, true);
       const delta = dateDiffDays(entry.date, nextDate);
       for (const t of targets) {
         const nd = addDaysISO(t.date, delta);
-        if (t.id === entry.id) {
-          const moved = cloneAsNew(t, nd, nextTime, now);
-          touch(t, now, { status: 'moved', movedToId: moved.id });
-          entries.push(moved);
-          enqueue({ op: 'upsert', id: moved.id, entry: exportEntry(moved), updatedAt: now });
-        } else {
-          touch(t, now, { date: nd, time: nextTime });
-        }
+        const moved = cloneAsNew(t, nd, nextTime, now);
+        entries.push(moved);
+        enqueue({ op: "upsert", id: moved.id, entry: exportEntry(moved), updatedAt: now });
       }
+      // originals remain in their initial state
     } else {
       const moved = cloneAsNew(entry, nextDate, nextTime, now);
-      touch(entry, now, { status: 'moved', movedToId: moved.id });
       entries.push(moved);
-      enqueue({ op: 'upsert', id: moved.id, entry: exportEntry(moved), updatedAt: now });
+      enqueue({ op: "upsert", id: moved.id, entry: exportEntry(moved), updatedAt: now });
+      // original remains in its initial state
     }
     persist(); render(); syncNow({ silent: true });
   }
-
   function setupRecurrence(entry, opts) {
     const now = opts.now;
     const count = opts.count; // '' = auto
@@ -387,20 +474,21 @@
   }
 
   function renderEntry(entry) {
-    const li = document.createElement('li');
+    const li = document.createElement("li");
     const color = normalizeColor(entry.color) || defaultColorFor(entry.type);
-    const pending = entry.syncStatus === 'pending';
-    const error = entry.syncStatus === 'error';
-    const status = entry.status || 'active';
-    li.className = 'entry-row' + (status !== 'active' ? ' entry-row-inactive' : '');
-    const statusBadge = status === 'cancelled'
+    const pending = entry.syncStatus === "pending";
+    const error = entry.syncStatus === "error";
+    const pendingUI = uiPending.get(entry.id);
+    const status = (pendingUI && pendingUI.status) || entry.status || "active";
+    li.className = "entry-row" + (status !== "active" ? " entry-row-inactive" : "");
+    const statusBadge = status === "cancelled"
       ? '<span class="badge badge-cancelled">Отмена</span>'
-      : status === 'moved'
+      : status === "moved"
         ? '<span class="badge badge-moved">Перенос</span>'
-        : '';
-    const recurBadge = entry.recurrence === 'weekly'
-      ? `<span class="badge badge-recur">Еженедельно${entry.repeatRemaining !== '' && entry.repeatRemaining != null ? ` · осталось ${entry.repeatRemaining}` : ''}</span>`
-      : '';
+        : "";
+    const recurBadge = entry.recurrence === "weekly"
+      ? `<span class="badge badge-recur">Еженедельно${entry.repeatRemaining !== "" && entry.repeatRemaining != null ? ` · осталось ${entry.repeatRemaining}` : ""}</span>`
+      : "";
     li.innerHTML = `
       <div class="entry-time">${escapeHTML(entry.time)}</div>
       <div class="entry-main">

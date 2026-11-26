@@ -435,3 +435,17 @@ input[type="color"] {
   .color-row { align-items: stretch; }
   .color-row .ghost-btn { flex: 1; }
 }
+
+.dialog { position: fixed; inset: 0; background: rgba(15,23,42,.42); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 60; }
+.dialog.hidden { display: none; }
+.dialog-card { width: min(560px, 100%); background: #fff; border: 1px solid var(--panel-border); border-radius: 16px; box-shadow: var(--shadow); padding: 20px; }
+.dialog-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom: 8px; }
+.dialog-desc { margin: 0 0 14px; color: var(--muted); font-size: .92rem; }
+.dialog-form { display:flex; flex-direction:column; gap:14px; }
+.scope-options { display:flex; flex-direction:column; gap:8px; }
+.scope-option { display:flex; gap:8px; align-items:flex-start; font-size:.92rem; color:var(--text); }
+.scope-option input { margin-top: 3px; }
+.field-help { color: var(--muted); font-size: .78rem; line-height: 1.3; }
+.dialog-actions { display:flex; justify-content:flex-end; gap:10px; margin-top: 4px; }
+.dialog .hidden { display:none !important; }
+@media (max-width: 640px){ .dialog-card{padding:16px;} .dialog-actions{flex-direction:column-reverse;} .dialog-actions button{width:100%;} }
