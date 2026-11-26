@@ -110,13 +110,13 @@ h2 { font-size: 1.25rem; }
   box-shadow: var(--shadow);
   min-width: 0;
 }
-.form-panel { padding: 24px; align-self: start; }
+.form-panel { padding: 20px; align-self: start; }
 .schedule-panel {
   padding: 24px;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  max-height: calc(100vh - 96px);
+  max-height: calc(100dvh - 88px);
 }
 
 .panel-head {
