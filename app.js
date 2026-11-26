@@ -42,6 +42,8 @@
   let syncing = false;
   let toastTimer;
   let actionDialogState = null;
+  const SCROLL_KEY = 'schedule.scroll.v1';
+  let restoredInitialScroll = false;
   
   const actionDialog = document.getElementById('actionDialog');
   const actionDialogForm = document.getElementById('actionDialogForm');
@@ -96,6 +98,7 @@
     actionDialogForm.addEventListener('submit', onActionDialogSubmit);
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && actionDialogState) closeActionDialog(); });
     scheduleList.addEventListener('click', onScheduleClick);
+    scheduleList.addEventListener('scroll', saveScheduleScroll, { passive: true });
   }
 
   function normalizeState() {
@@ -489,8 +492,6 @@
       return;
     }
 
-    const today = localDateValue(new Date());
-    let scrolledToToday = false;
     const groups = groupByDate(visible);
     for (const [date, items] of groups) {
       const section = document.createElement('section');
@@ -513,11 +514,31 @@
       scheduleList.appendChild(section);
     }
 
-    requestAnimationFrame(() => {
-      const target = scheduleList.querySelector(`[data-date="${today}"]`)
-        || Array.from(scheduleList.querySelectorAll('.day-group[data-date]')).find((el) => el.dataset.date > today);
-      if (target) target.scrollIntoView({ block: 'start' });
-    });
+    requestAnimationFrame(() => { restoreScheduleScroll(); });
+  }
+
+  function saveScheduleScroll() {
+    try { localStorage.setItem(SCROLL_KEY, String(scheduleList.scrollTop || 0)); } catch {}
+  }
+
+  function restoreScheduleScroll() {
+    try {
+      const raw = localStorage.getItem(SCROLL_KEY);
+      if (raw == null) {
+        if (!restoredInitialScroll) {
+          const today = localDateValue(new Date());
+          const target = scheduleList.querySelector(`[data-date="${today}"]`)
+            || Array.from(scheduleList.querySelectorAll('.day-group[data-date]')).find((el) => el.dataset.date > today);
+          if (target) target.scrollIntoView({ block: 'start' });
+        }
+        restoredInitialScroll = true;
+        return;
+      }
+      const top = Math.max(0, parseInt(raw, 10) || 0);
+      const max = Math.max(0, scheduleList.scrollHeight - scheduleList.clientHeight);
+      scheduleList.scrollTop = Math.min(top, max);
+      restoredInitialScroll = true;
+    } catch {}
   }
 
   function renderEntry(entry) {
@@ -682,7 +703,7 @@
 
   async function postJson(url, body) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10000);
+    const timer = setTimeout(() => controller.abort(), 30000);
     try {
       // Apps Script web apps redirect; POST may be converted to GET on 302 by browsers.
       // Use POST with text/plain (no preflight). If response isn't valid JSON, fall back to GET.
