@@ -12,6 +12,7 @@
     event: { label: 'Событие', color: '#8a3ffc' },
     task: { label: 'Задача', color: '#d92d20' },
     photoshoot: { label: 'Фотосессия', color: '#0d9488' },
+    walk: { label: 'Прогулка', color: '#ca8a04' },
   };
 
   const $ = (id) => document.getElementById(id);

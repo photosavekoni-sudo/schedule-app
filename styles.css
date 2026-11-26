@@ -184,6 +184,8 @@ input:focus, textarea:focus, button:focus-visible {
 .type-option input:checked + .type-task { background: var(--task); }
 .type-photoshoot { background: #ccfbf1; color: #0f766e; border-color: #99f6e4; }
 .type-option input:checked + .type-photoshoot { background: #0d9488; color: #fff; border-color: transparent; }
+.type-walk { background: #fef3c7; color: #a16207; border-color: #fde68a; }
+.type-option input:checked + .type-walk { background: #ca8a04; color: #fff; border-color: transparent; }
 .type-option input:focus-visible + .type-chip { outline: 3px solid rgba(31,111,235,.18); }
 
 .color-row { display: flex; gap: 10px; align-items: center; }
@@ -249,6 +251,7 @@ input[type="color"] {
 .dot-event { background: var(--event); }
 .dot-task { background: var(--task); }
 .dot-photoshoot { background: #0d9488; }
+.dot-walk { background: #ca8a04; }
 
 .schedule-list {
   display: flex;
