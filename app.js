@@ -8,9 +8,9 @@
   const META_KEY = 'schedule.meta.v1';
 
   const TYPE_CONFIG = {
-    client: { label: 'Клиент', color: '#1f6feb' },
+    training: { label: 'Тренировка', color: '#1f6feb' },
     event: { label: 'Мероприятие', color: '#8a3ffc' },
-    task: { label: 'Задача', color: '#14866d' },
+    task: { label: 'Задача', color: '#d92d20' },
   };
 
   const $ = (id) => document.getElementById(id);
@@ -45,21 +45,21 @@
   function init() {
     normalizeState();
     bindEvents();
-        setDefaultDateTime();
+    setDefaultDateTime();
     updateNetStatus();
+    ensureAutoRecurrences();
     render();
     updateSyncStatus();
     registerServiceWorker();
     window.addEventListener('online', () => { updateNetStatus(); syncNow({ silent: true }); });
     window.addEventListener('offline', updateNetStatus);
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && navigator.onLine) syncNow({ silent: true });
+      if (document.visibilityState === 'visible') { ensureAutoRecurrences(); render(); if (navigator.onLine) syncNow({ silent: true }); }
     });
-    window.addEventListener('pageshow', () => { if (navigator.onLine) syncNow({ silent: true }); });
+    window.addEventListener('pageshow', () => { ensureAutoRecurrences(); render(); if (navigator.onLine) syncNow({ silent: true }); });
     window.addEventListener('focus', () => { if (navigator.onLine) syncNow({ silent: true }); });
     if (navigator.onLine) syncNow({ silent: true });
   }
-
   function bindEvents() {
     form.addEventListener('submit', onSubmit);
     cancelEditBtn.addEventListener('click', resetForm);
@@ -91,7 +91,10 @@
   }
 
   function normalizeEntry(e) {
-    const type = TYPE_CONFIG[e.type] ? e.type : 'client';
+    const type = TYPE_CONFIG[e.type] ? e.type : 'training';
+    const status = ['active','cancelled','moved'].includes(e.status) ? e.status : 'active';
+    const rt = parseInt(e.repeatTotal, 10);
+    const rr = parseInt(e.repeatRemaining, 10);
     return {
       id: String(e.id),
       date: String(e.date || ''),
@@ -104,6 +107,12 @@
       sourceDevice: String(e.sourceDevice || ''),
       syncStatus: e.syncStatus === 'error' ? 'error' : (e.syncStatus === 'pending' ? 'pending' : 'synced'),
       lastError: String(e.lastError || ''),
+      status,
+      seriesId: String(e.seriesId || ''),
+      recurrence: e.recurrence === 'weekly' ? 'weekly' : '',
+      repeatTotal: Number.isFinite(rt) && rt >= 0 ? rt : '',
+      repeatRemaining: Number.isFinite(rr) && rr >= 0 ? rr : '',
+      movedToId: String(e.movedToId || ''),
     };
   }
 
@@ -158,8 +167,9 @@
     if (!btn) return;
     const id = btn.getAttribute('data-id');
     const action = btn.getAttribute('data-action');
-    const entry = entries.find((e) => e.id === id);
+    const entry = entries.find((e) => e.id === id && !e.deleted);
     if (!entry) return;
+    const now = new Date().toISOString();
 
     if (action === 'edit') {
       entryId.value = entry.id;
@@ -173,30 +183,164 @@
       $('formTitle').textContent = 'Редактировать запись';
       form.scrollIntoView({ behavior: 'smooth', block: 'start' });
       infoInput.focus();
+      return;
     }
 
     if (action === 'delete') {
       const label = entry.info.length > 40 ? entry.info.slice(0, 40) + '…' : entry.info;
       if (!confirm(`Удалить запись "${label}"?`)) return;
-      const now = new Date().toISOString();
-      entry.deleted = true;
-      entry.updatedAt = now;
-      entry.syncStatus = 'pending';
-      entry.lastError = '';
-      enqueue({ op: 'delete', id: entry.id, entry: exportEntry(entry), updatedAt: now });
-      persist();
-      render();
+      applyStatusChange(entry, 'deleted', { now, scope: getSeriesScope(entry, 'Удалить') });
       showToast('Запись удалена.');
       if (entryId.value === id) resetForm();
-      syncNow({ silent: true });
+      return;
+    }
+
+    if (action === 'cancel') {
+      if (entry.status === 'cancelled') { showToast('Запись уже отменена.'); return; }
+      const scope = getSeriesScope(entry, 'Отменить');
+      if (scope === null) return;
+      applyStatusChange(entry, 'cancelled', { now, scope });
+      showToast(scope === 'future' ? 'Запись и последующие отменены.' : 'Запись отменена.');
+      return;
+    }
+
+    if (action === 'move') {
+      const scope = getSeriesScope(entry, 'Перенести');
+      if (scope === null) return;
+      const nextDate = prompt('Новая дата (ГГГГ-ММ-ДД):', entry.date);
+      if (!nextDate) return;
+      const nextTime = prompt('Новое время (ЧЧ:ММ):', entry.time);
+      if (!nextTime) return;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(nextDate) || !/^\d{2}:\d{2}$/.test(nextTime)) { showToast('Неверный формат даты/времени.'); return; }
+      moveEntry(entry, nextDate, nextTime, { now, scope });
+      showToast(scope === 'future' ? 'Запись и последующие перенесены.' : 'Запись перенесена.');
+      return;
+    }
+
+    if (action === 'repeat') {
+      const countRaw = prompt('Количество повторений (пусто = автоматически на 1 период вперёд):', entry.repeatTotal === '' ? '' : String(entry.repeatTotal));
+      if (countRaw === null) return;
+      const count = countRaw.trim() === '' ? '' : parseInt(countRaw.trim(), 10);
+      if (count !== '' && (!Number.isFinite(count) || count < 0)) { showToast('Введите число 0 или больше.'); return; }
+      setupRecurrence(entry, { count, now });
+      showToast(entry.recurrence === 'weekly' ? 'Повторение настроено.' : 'Повторение обновлено.');
+      return;
     }
   }
 
+  function getSeriesScope(entry, actionLabel) {
+    if (entry.recurrence !== 'weekly' && !entry.seriesId) return 'single';
+    const msg = actionLabel + ': разово или все последующие периоды?\nOK = все последующие, Отмена = только эту запись';
+    return confirm(msg) ? 'future' : 'single';
+  }
+
+  function touch(entry, now, patch) {
+    Object.assign(entry, patch, { updatedAt: now, syncStatus: 'pending', lastError: '' });
+    enqueue({ op: 'upsert', id: entry.id, entry: exportEntry(entry), updatedAt: now });
+  }
+
+  function futureSeriesEntries(entry, includeSelf) {
+    if (!entry.seriesId) return includeSelf ? [entry] : [];
+    const key = entry.date + 'T' + entry.time;
+    return entries
+      .filter((e) => !e.deleted && e.seriesId === entry.seriesId && (includeSelf ? (e.date + 'T' + e.time >= key) : (e.date + 'T' + e.time > key)))
+      .sort(compareEntries);
+  }
+
+  function applyStatusChange(entry, status, opts) {
+    const now = opts.now;
+    const scope = opts.scope;
+    const targets = scope === 'future' ? futureSeriesEntries(entry, true) : [entry];
+    for (const t of targets) {
+      if (status === 'deleted') {
+        t.deleted = true; t.updatedAt = now; t.syncStatus = 'pending'; t.lastError = '';
+        enqueue({ op: 'delete', id: t.id, entry: exportEntry(t), updatedAt: now });
+      } else {
+        touch(t, now, { status });
+      }
+    }
+    persist(); render(); syncNow({ silent: true });
+  }
+
+  function moveEntry(entry, nextDate, nextTime, opts) {
+    const now = opts.now;
+    const scope = opts.scope;
+    if (scope === 'future') {
+      const targets = futureSeriesEntries(entry, true);
+      const delta = dateDiffDays(entry.date, nextDate);
+      for (const t of targets) {
+        const nd = addDaysISO(t.date, delta);
+        if (t.id === entry.id) {
+          const moved = cloneAsNew(t, nd, nextTime, now);
+          touch(t, now, { status: 'moved', movedToId: moved.id });
+          entries.push(moved);
+          enqueue({ op: 'upsert', id: moved.id, entry: exportEntry(moved), updatedAt: now });
+        } else {
+          touch(t, now, { date: nd, time: nextTime });
+        }
+      }
+    } else {
+      const moved = cloneAsNew(entry, nextDate, nextTime, now);
+      touch(entry, now, { status: 'moved', movedToId: moved.id });
+      entries.push(moved);
+      enqueue({ op: 'upsert', id: moved.id, entry: exportEntry(moved), updatedAt: now });
+    }
+    persist(); render(); syncNow({ silent: true });
+  }
+
+  function setupRecurrence(entry, opts) {
+    const now = opts.now;
+    const count = opts.count; // '' = auto
+    const seriesId = entry.seriesId || entry.id;
+    const base = { ...entry, seriesId, recurrence: 'weekly', status: 'active' };
+    touch(entry, now, { seriesId, recurrence: 'weekly', repeatTotal: count, repeatRemaining: count === '' ? '' : Math.max(0, count - 1), status: 'active' });
+    if (count === '') {
+      ensureNextAutoOccurrence(entry, now);
+    } else {
+      const total = Number(count);
+      const existing = entries.filter((e) => !e.deleted && e.seriesId === seriesId).sort(compareEntries);
+      // keep current + create missing future occurrences
+      for (let i = 1; i < total; i++) {
+        const d = addDaysISO(entry.date, i * 7);
+        const has = existing.some((e) => e.date === d && e.time === entry.time);
+        if (!has) {
+          const n = normalizeEntry({ ...base, id: makeId(), date: d, time: entry.time, updatedAt: now, deleted:false, syncStatus:'pending', lastError:'', repeatTotal: total, repeatRemaining: Math.max(0, total - i - 1), movedToId:'' });
+          entries.push(n);
+          enqueue({ op: 'upsert', id: n.id, entry: exportEntry(n), updatedAt: now });
+        }
+      }
+    }
+    persist(); render(); syncNow({ silent: true });
+  }
+
+  function ensureNextAutoOccurrence(entry, now) {
+    if (entry.recurrence !== 'weekly' || entry.repeatTotal !== '') return;
+    const seriesId = entry.seriesId || entry.id;
+    const series = entries.filter((e) => !e.deleted && e.seriesId === seriesId).sort(compareEntries);
+    const last = series[series.length - 1] || entry;
+    const nextDate = addDaysISO(last.date, 7);
+    const has = series.some((e) => e.date === nextDate && e.time === entry.time);
+    if (has) return;
+    const n = normalizeEntry({ ...entry, id: makeId(), date: nextDate, updatedAt: now, deleted:false, syncStatus:'pending', lastError:'', status:'active', movedToId:'', repeatTotal:'', repeatRemaining:'' });
+    entries.push(n);
+    enqueue({ op: 'upsert', id: n.id, entry: exportEntry(n), updatedAt: now });
+  }
+
+  function cloneAsNew(entry, date, time, now) {
+    return normalizeEntry({ ...entry, id: makeId(), date, time, updatedAt: now, deleted:false, syncStatus:'pending', lastError:'', status:'active', movedToId:'', repeatRemaining: entry.repeatTotal === '' ? '' : entry.repeatRemaining });
+  }
+
+  function addDaysISO(iso, days) {
+    const d = new Date(iso + 'T00:00:00');
+    d.setDate(d.getDate() + days);
+    return localDateValue(d);
+  }
+  function dateDiffDays(a,b){ const da=new Date(a+'T00:00:00'); const db=new Date(b+'T00:00:00'); return Math.round((db-da)/86400000); }
   function resetForm(opts = {}) {
     entryId.value = '';
     if (!opts.keepDate) setDefaultDateTime(); else { timeInput.value = ''; infoInput.focus(); }
     infoInput.value = opts.keepDate ? '' : infoInput.value;
-    setSelectedType('client');
+    setSelectedType('training');
     colorInput.value = TYPE_CONFIG.client.color;
     cancelEditBtn.classList.add('hidden');
     saveBtn.textContent = 'Сохранить запись';
@@ -244,35 +388,54 @@
 
   function renderEntry(entry) {
     const li = document.createElement('li');
-    li.className = 'entry-row';
     const color = normalizeColor(entry.color) || defaultColorFor(entry.type);
     const pending = entry.syncStatus === 'pending';
     const error = entry.syncStatus === 'error';
+    const status = entry.status || 'active';
+    li.className = 'entry-row' + (status !== 'active' ? ' entry-row-inactive' : '');
+    const statusBadge = status === 'cancelled'
+      ? '<span class="badge badge-cancelled">Отмена</span>'
+      : status === 'moved'
+        ? '<span class="badge badge-moved">Перенос</span>'
+        : '';
+    const recurBadge = entry.recurrence === 'weekly'
+      ? `<span class="badge badge-recur">Еженедельно${entry.repeatRemaining !== '' && entry.repeatRemaining != null ? ` · осталось ${entry.repeatRemaining}` : ''}</span>`
+      : '';
     li.innerHTML = `
       <div class="entry-time">${escapeHTML(entry.time)}</div>
       <div class="entry-main">
-        <div class="entry-info">
+        <div class="entry-info ${status !== 'active' ? 'entry-info-inactive' : ''}">
           <span class="entry-color" style="background:${escapeAttr(color)};box-shadow:0 0 0 2px #fff,0 0 0 4px ${escapeAttr(color)}33"></span>
-          <span>${escapeHTML(entry.info)}</span>
+          <span class="entry-text">${escapeHTML(entry.info)}</span>
         </div>
         <div class="entry-meta">
           <span class="badge">${escapeHTML(getTypeLabel(entry.type))}</span>
+          ${statusBadge}
+          ${recurBadge}
           ${pending ? '<span class="badge badge-pending">Ждёт отправки</span>' : ''}
-          ${error ? `<span class="badge badge-error" title="${escapeAttr(entry.lastError || 'Ошибка синхронизации')}">Ошибка синхронизации</span>` : ''}
+          ${error ? `<span class="badge badge-error" title="${escapeAttr(entry.lastError || 'Ошибка синхронизации')}">Ошибка</span>` : ''}
         </div>
       </div>
       <div class="entry-actions">
-        <button class="icon-btn" type="button" data-action="edit" data-id="${escapeAttr(entry.id)}" aria-label="Редактировать">
+        <button class="icon-btn" type="button" data-action="edit" data-id="${escapeAttr(entry.id)}" aria-label="Редактировать" title="Редактировать">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.83H5v-.92l9.06-9.06.92.92L5.92 20.08zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
         </button>
-        <button class="icon-btn danger" type="button" data-action="delete" data-id="${escapeAttr(entry.id)}" aria-label="Удалить">
+        <button class="icon-btn" type="button" data-action="cancel" data-id="${escapeAttr(entry.id)}" aria-label="Отменить" title="Отмена">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm3.54-10.12L13.41 12l2.13 2.12-1.42 1.42L12 13.41l-2.12 2.13-1.42-1.42L10.59 12 8.46 9.88l1.42-1.42L12 10.59l2.12-2.13 1.42 1.42z"/></svg>
+        </button>
+        <button class="icon-btn" type="button" data-action="move" data-id="${escapeAttr(entry.id)}" aria-label="Перенести" title="Перенос">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10l4-4V6a2 2 0 0 0-2-2zm0 11h-3a2 2 0 0 0-2 2v3H5V9h14v6zm-8 2h2v2l3-3-3-3v2h-2v2z"/></svg>
+        </button>
+        <button class="icon-btn" type="button" data-action="repeat" data-id="${escapeAttr(entry.id)}" aria-label="Повторение" title="Повторение">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+        </button>
+        <button class="icon-btn danger" type="button" data-action="delete" data-id="${escapeAttr(entry.id)}" aria-label="Удалить" title="Удалить">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l-1 14H7L6 7zm3-3h6l1 2h4v2H4V6h4l1-2zm1 6h2v8h-2v-8zm4 0h2v8h-2v-8z"/></svg>
         </button>
       </div>
     `;
     return li;
   }
-
   async function syncNow(opts = {}) {
     const silent = Boolean(opts.silent);
     if (syncing) return;
@@ -339,7 +502,6 @@
         // Keep local if it's newer or same age; server will get it on next push.
         if ((r.updatedAt || '') > (local.updatedAt || '')) {
           // Conflict: remote newer but local has pending op. Prefer local pending change,
-          // but keep remote if local was just a stale pending marker. Here local wins.
         }
         continue;
       }
@@ -348,9 +510,15 @@
       }
     }
     entries = Array.from(byId.values());
-    // Keep locally deleted tombstones only while pending.
     entries = entries.filter((e) => !e.deleted || outbox.some((o) => o.id === e.id));
+    ensureAutoRecurrences();
     persist();
+  }
+
+  function ensureAutoRecurrences() {
+    const now = new Date().toISOString();
+    const activeWeekly = entries.filter((e) => !e.deleted && e.recurrence === 'weekly' && e.repeatTotal === '' && e.status !== 'cancelled');
+    for (const e of activeWeekly) ensureNextAutoOccurrence(e, now);
   }
 
   function collapseOutbox(ops) {
@@ -424,6 +592,12 @@
       updatedAt: entry.updatedAt,
       deleted: Boolean(entry.deleted),
       sourceDevice: entry.sourceDevice || settings.deviceName || getDeviceLabel(),
+      status: entry.status || 'active',
+      seriesId: entry.seriesId || '',
+      recurrence: entry.recurrence || '',
+      repeatTotal: entry.repeatTotal === '' || entry.repeatTotal == null ? '' : Number(entry.repeatTotal),
+      repeatRemaining: entry.repeatRemaining === '' || entry.repeatRemaining == null ? '' : Number(entry.repeatRemaining),
+      movedToId: entry.movedToId || '',
     };
   }
 
@@ -493,7 +667,7 @@
 
   function getSelectedType() {
     const checked = document.querySelector('input[name="type"]:checked');
-    return checked ? checked.value : 'client';
+    return checked ? checked.value : 'training';
   }
   function setSelectedType(type) {
     const input = document.querySelector(`input[name="type"][value="${CSS.escape(type)}"]`);
