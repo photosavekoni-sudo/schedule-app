@@ -83,7 +83,7 @@
     resetColorBtn.addEventListener('click', () => { colorInput.value = defaultColorFor(getSelectedType()); });
     document.querySelectorAll('input[name="type"]').forEach((input) => {
       input.addEventListener('change', () => {
-        if (!entryId.value) colorInput.value = defaultColorFor(getSelectedType());
+        colorInput.value = defaultColorFor(getSelectedType());
       });
     });
     searchInput.addEventListener('input', render);
@@ -471,7 +471,7 @@
     if (!opts.keepDate) setDefaultDateTime(); else { timeInput.value = ''; infoInput.focus(); }
     infoInput.value = opts.keepDate ? '' : infoInput.value;
     setSelectedType('training');
-    colorInput.value = TYPE_CONFIG.client.color;
+    colorInput.value = defaultColorFor('training');
     cancelEditBtn.classList.add('hidden');
     saveBtn.textContent = 'Сохранить запись';
     $('formTitle').textContent = 'Добавить в расписание';
@@ -569,6 +569,7 @@
   async function syncNow(opts = {}) {
     const silent = Boolean(opts.silent);
     if (syncing) return;
+    if (silent && meta.lastSyncAt && (Date.now() - Date.parse(meta.lastSyncAt)) < 12000) return;
     if (!navigator.onLine) {
       updateSyncStatus();
       if (!silent) showToast('Нет интернета. Данные отправятся позже.');
@@ -676,7 +677,7 @@
 
   async function postJson(url, body) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
+    const timer = setTimeout(() => controller.abort(), 10000);
     try {
       // Apps Script web apps redirect; POST may be converted to GET on 302 by browsers.
       // Use POST with text/plain (no preflight). If response isn't valid JSON, fall back to GET.
@@ -803,7 +804,7 @@
     const input = document.querySelector(`input[name="type"][value="${CSS.escape(type)}"]`);
     if (input) input.checked = true;
   }
-  function defaultColorFor(type) { return (TYPE_CONFIG[type] || TYPE_CONFIG.client).color; }
+  function defaultColorFor(type) { return (TYPE_CONFIG[type] || TYPE_CONFIG.training).color; }
   function getTypeLabel(type) { return (TYPE_CONFIG[type] || TYPE_CONFIG.client).label; }
   function normalizeColor(value) { return /^#[0-9a-fA-F]{6}$/.test(value || '') ? value.toLowerCase() : ''; }
   function makeId() {
