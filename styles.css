@@ -178,7 +178,8 @@ input:focus, textarea:focus, button:focus-visible {
   transition: .15s ease;
 }
 .type-option input:checked + .type-chip { color: #fff; border-color: transparent; }
-.type-option input:checked + .type-training { background: var(--client); }
+.type-training { background: #e7f0ff; color: #1f6feb; border-color: #c9dcfb; }
+.type-option input:checked + .type-training { background: var(--training); color: #fff; border-color: transparent; }
 .type-option input:checked + .type-event { background: var(--event); }
 .type-option input:checked + .type-task { background: var(--task); }
 .type-option input:focus-visible + .type-chip { outline: 3px solid rgba(31,111,235,.18); }
@@ -242,7 +243,7 @@ input[type="color"] {
 }
 .legend-item { display: inline-flex; align-items: center; gap: 8px; }
 .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-.dot-training { background: var(--client); }
+.dot-training { background: var(--training); }
 .dot-event { background: var(--event); }
 .dot-task { background: var(--task); }
 
