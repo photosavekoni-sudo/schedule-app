@@ -489,10 +489,13 @@
       return;
     }
 
+    const today = localDateValue(new Date());
+    let scrolledToToday = false;
     const groups = groupByDate(visible);
     for (const [date, items] of groups) {
       const section = document.createElement('section');
       section.className = 'day-group';
+      section.dataset.date = date;
 
       const header = document.createElement('div');
       header.className = 'day-header';
@@ -509,6 +512,12 @@
       section.append(header, list);
       scheduleList.appendChild(section);
     }
+
+    requestAnimationFrame(() => {
+      const target = scheduleList.querySelector(`[data-date="${today}"]`)
+        || Array.from(scheduleList.querySelectorAll('.day-group[data-date]')).find((el) => el.dataset.date > today);
+      if (target) target.scrollIntoView({ block: 'start' });
+    });
   }
 
   function renderEntry(entry) {
