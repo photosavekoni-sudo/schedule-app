@@ -9,8 +9,9 @@
 
   const TYPE_CONFIG = {
     training: { label: 'Тренировка', color: '#1f6feb' },
-    event: { label: 'Мероприятие', color: '#8a3ffc' },
+    event: { label: 'Событие', color: '#8a3ffc' },
     task: { label: 'Задача', color: '#d92d20' },
+    photoshoot: { label: 'Фотосессия', color: '#0d9488' },
   };
 
   const $ = (id) => document.getElementById(id);

@@ -40,7 +40,7 @@
 
           <label class="field field-wide">
             <span>Ваше имя</span>
-            <input id="authorInput" name="author" type="text" placeholder="Например: Анна" autocomplete="name">
+            <input id="authorInput" name="author" type="text" autocomplete="name">
           </label>
 
           <label class="field">
@@ -72,6 +72,10 @@
               <label class="type-option">
                 <input type="radio" name="type" value="task">
                 <span class="type-chip type-task">Задача</span>
+              </label>
+              <label class="type-option">
+                <input type="radio" name="type" value="photoshoot">
+                <span class="type-chip type-photoshoot">Фотосессия</span>
               </label>
             </div>
           </div>
@@ -110,6 +114,7 @@
           <span class="legend-item"><i class="dot dot-training"></i>Тренировка</span>
           <span class="legend-item"><i class="dot dot-event"></i>Мероприятие</span>
           <span class="legend-item"><i class="dot dot-task"></i>Задача</span>
+          <span class="legend-item"><i class="dot dot-photoshoot"></i>Фотосессия</span>
         </div>
 
         <div id="scheduleList" class="schedule-list" aria-live="polite"></div>
@@ -162,6 +167,6 @@
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app.js?v=29" defer></script>
+  <script src="app.js?v=30" defer></script>
 </body>
 </html>
