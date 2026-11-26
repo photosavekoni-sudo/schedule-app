@@ -307,12 +307,6 @@
     }
   }
 
-  function getSeriesScope(entry, actionLabel) {
-    if (!entry.recurrence && !entry.seriesId) return "single";
-    const msg = actionLabel + ': разово или все последующие периоды?\nOK = все последующие, Отмена = только эту запись';
-    return confirm(msg) ? 'future' : 'single';
-  }
-
   function touch(entry, now, patch) {
     Object.assign(entry, patch, { updatedAt: now, syncStatus: 'pending', lastError: '' });
     enqueue({ op: 'upsert', id: entry.id, entry: exportEntry(entry), updatedAt: now });
@@ -802,7 +796,7 @@
     if (input) input.checked = true;
   }
   function defaultColorFor(type) { return (TYPE_CONFIG[type] || TYPE_CONFIG.training).color; }
-  function getTypeLabel(type) { return (TYPE_CONFIG[type] || TYPE_CONFIG.client).label; }
+  function getTypeLabel(type) { return (TYPE_CONFIG[type] || TYPE_CONFIG.training).label; }
   function normalizeColor(value) { return /^#[0-9a-fA-F]{6}$/.test(value || '') ? value.toLowerCase() : ''; }
   function makeId() {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
