@@ -38,6 +38,11 @@
         <form id="entryForm" class="entry-form" novalidate>
           <input id="entryId" type="hidden">
 
+          <label class="field field-wide">
+            <span>Ваше имя</span>
+            <input id="authorInput" name="author" type="text" placeholder="Например: Анна" autocomplete="name">
+          </label>
+
           <label class="field">
             <span>Дата</span>
             <input id="dateInput" name="date" type="date" required>
@@ -157,6 +162,6 @@
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="app.js?v=28" defer></script>
+  <script src="app.js?v=29" defer></script>
 </body>
 </html>

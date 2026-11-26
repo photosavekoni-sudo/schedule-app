@@ -86,6 +86,7 @@
       });
     });
     searchInput.addEventListener('input', render);
+    authorInput.addEventListener('change', () => { settings.deviceName = authorInput.value.trim(); persist(); });
     syncBtn.addEventListener('click', () => syncNow());
     actionDialogClose.addEventListener('click', closeActionDialog);
     actionDialogCancel.addEventListener('click', closeActionDialog);
@@ -161,6 +162,7 @@
 
     const now = new Date().toISOString();
     const existingId = entryId.value;
+    settings.deviceName = authorInput.value.trim();
     const device = settings.deviceName || getDeviceLabel();
 
     if (existingId) {
@@ -533,6 +535,7 @@
           <span class="badge">${escapeHTML(getTypeLabel(entry.type))}</span>
           ${statusBadge}
           ${recurBadge}
+          ${entry.sourceDevice ? `<span class="badge">${escapeHTML(entry.sourceDevice)}</span>` : ""}
           ${pending ? '<span class="badge badge-pending">Ждёт отправки</span>' : ''}
           ${error ? `<span class="badge badge-error" title="${escapeAttr(entry.lastError || 'Ошибка синхронизации')}">Ошибка</span>` : ''}
         </div>
