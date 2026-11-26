@@ -168,7 +168,7 @@
     const now = new Date().toISOString();
     const existingId = entryId.value;
     settings.deviceName = authorInput.value.trim();
-    const device = settings.deviceName || getDeviceLabel();
+    const device = (settings.deviceName || '').trim();
 
     if (existingId) {
       const idx = entries.findIndex((e) => e.id === existingId);
@@ -567,7 +567,7 @@
           <span class="badge">${escapeHTML(getTypeLabel(entry.type))}</span>
           ${statusBadge}
           ${recurBadge}
-          ${entry.sourceDevice ? `<span class="badge">${escapeHTML(entry.sourceDevice)}</span>` : ""}
+          ${entry.sourceDevice && !isAutoDeviceLabel(entry.sourceDevice) ? `<span class="badge">${escapeHTML(entry.sourceDevice)}</span>` : ""}
           ${pending ? '<span class="badge badge-pending">Ждёт отправки</span>' : ''}
           ${error ? `<span class="badge badge-error" title="${escapeAttr(entry.lastError || 'Ошибка синхронизации')}">Ошибка</span>` : ''}
         </div>
@@ -626,7 +626,7 @@
   async function flushOutbox() {
     if (!outbox.length) return;
     const pendingOps = collapseOutbox(outbox);
-    const payload = { action: 'push', device: settings.deviceName || getDeviceLabel(), ops: pendingOps };
+    const payload = { action: 'push', device: (settings.deviceName || '').trim() || 'web', ops: pendingOps };
     const res = await postJson(API_URL, payload);
     if (!res || res.ok !== true) throw new Error(res && res.error ? res.error : 'Push failed');
 
@@ -748,7 +748,7 @@
       color: entry.color,
       updatedAt: entry.updatedAt,
       deleted: Boolean(entry.deleted),
-      sourceDevice: entry.sourceDevice || settings.deviceName || getDeviceLabel(),
+      sourceDevice: entry.sourceDevice || (settings.deviceName || '').trim() || '',
       status: entry.status || 'active',
       seriesId: entry.seriesId || '',
       recurrence: entry.recurrence || '',
@@ -837,6 +837,10 @@
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
     return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
   }
+  function isAutoDeviceLabel(value) {
+    return /^(Win32|Win64|MacIntel|Linux|iPhone|iPad|Android|device)-[a-z0-9]+$/i.test(String(value || '').trim());
+  }
+
   function getDeviceLabel() {
     return (navigator.platform || 'device') + '-' + Math.random().toString(36).slice(2, 6);
   }
