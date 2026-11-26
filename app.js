@@ -229,7 +229,6 @@
     actionDialogForm.reset();
     actionScopeWrap.classList.toggle("hidden", !isSeriesEntry(entry));
     actionDateWrap.classList.add("hidden");
-    actionTimeWrap.classList.add("hidden");
     actionRepeatWrap.classList.add("hidden");
     actionDialogSubmit.textContent = "Ок";
     const scopeSingle = actionDialogForm.querySelector('input[name="actionScope"][value="single"]');
@@ -243,7 +242,6 @@
       actionDialogTitle.textContent = "Перенос";
       actionDialogDesc.textContent = "Новая дата и время.";
       actionDateWrap.classList.remove("hidden");
-      actionTimeWrap.classList.remove("hidden");
       actionDateInput.value = entry.date;
       actionTimeInput.value = entry.time;
       actionDialogSubmit.textContent = "Перенести";
