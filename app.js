@@ -50,7 +50,6 @@
   const actionDialogSubmit = document.getElementById('actionDialogSubmit');
   const actionScopeWrap = document.getElementById('actionScopeWrap');
   const actionDateWrap = document.getElementById('actionDateWrap');
-  const actionTimeWrap = document.getElementById('actionTimeWrap');
   const actionRepeatWrap = document.getElementById('actionRepeatWrap');
   const actionDateInput = document.getElementById('actionDateInput');
   const actionTimeInput = document.getElementById('actionTimeInput');
