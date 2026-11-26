@@ -1,10 +1,10 @@
 /* Simple app-shell service worker for offline UI. Data sync is handled by app.js. */
-const CACHE_NAME = 'schedule-app-v22';
+const CACHE_NAME = 'schedule-app-v23';
 const SHELL = [
   './',
   './index.html',
   './styles.css',
-  './app.js?v=22',
+  './app.js?v=23',
   './manifest.webmanifest',
   './icon.svg',
 ];
